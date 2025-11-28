@@ -1,4 +1,6 @@
 import { Buffer } from "node:buffer";
+import zlib  from 'zlib';
+import { promisify } from 'util';
 
 export default {
   async fetch (request) {
@@ -11,7 +13,8 @@ export default {
     };
     try {
       const auth = request.headers.get("Authorization");
-      const apiKey = auth?.split(" ")[1];
+//      const apiKey = auth?.split(" ")[1];
+      const apiKey = 'AIzaSyBWQg2ym67kcRa_GuRHN1GB-9Ot20UUENI';
       const assert = (success) => {
         if (!success) {
           throw new HttpError("The specified HTTP method is not allowed for the requested resource", 400);
@@ -51,6 +54,9 @@ class HttpError extends Error {
 const fixCors = ({ headers, status, statusText }) => {
   headers = new Headers(headers);
   headers.set("Access-Control-Allow-Origin", "*");
+
+  headers.set('content-encoding', 'gzip');
+
   return { headers, status, statusText };
 };
 
@@ -71,11 +77,13 @@ const API_VERSION = "v1beta";
 const API_CLIENT = "google-genai-sdk/1.28.0"; // npm view @google/genai version
 const makeHeaders = (apiKey, more) => ({
   "x-goog-api-client": API_CLIENT,
+//  "Accept-Encoding": "gzip",
   ...(apiKey && { "x-goog-api-key": apiKey }),
   ...more
 });
 
 async function handleModels (apiKey) {
+//console.log(`${BASE_URL}/${API_VERSION}/models`);
   const response = await fetch(`${BASE_URL}/${API_VERSION}/models`, {
     headers: makeHeaders(apiKey),
   });
@@ -92,6 +100,8 @@ async function handleModels (apiKey) {
       })),
     }, null, "  ");
   }
+  const gzip = promisify(zlib.gzip);
+  body = await gzip(body);
   return new Response(body, fixCors(response));
 }
 

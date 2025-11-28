@@ -1,6 +1,9 @@
 {
   "dependencies": {
-    "@whatwg-node/server": "0.9"
+    "@whatwg-node/server": "0.9",
+    "compression": "^1.8.1",
+    "express": "^5.1.0",
+    "zlib-node": "^1.0.10"
   },
   "devDependencies": {
     "nodemon": "3"
