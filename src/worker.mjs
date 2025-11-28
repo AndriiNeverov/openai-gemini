@@ -1,6 +1,24 @@
 import { Buffer } from "node:buffer";
 import zlib  from 'zlib';
 import { promisify } from 'util';
+import { Transform, Readable } from 'stream';
+
+class CompressionStream extends Transform {
+  constructor(options) {
+    super(options);
+    this.gzip = zlib.createGzip();
+  }
+
+  _transform(chunk, encoding, callback) {
+    this.gzip.write(chunk, encoding, callback);
+  }
+
+  _flush(callback) {
+    this.gzip.end();
+    this.gzip.on('data', (chunk) => this.push(chunk));
+    this.gzip.on('end', callback);
+  }
+}
 
 export default {
   async fetch (request) {
@@ -14,7 +32,7 @@ export default {
     try {
       const auth = request.headers.get("Authorization");
 //      const apiKey = auth?.split(" ")[1];
-      const apiKey = 'AIzaSyBWQg2ym67kcRa_GuRHN1GB-9Ot20UUENI';
+//      const apiKey = 'AIzaSyBWQg2ym67kcRa_GuRHN1GB-9Ot20UUENI';
       const assert = (success) => {
         if (!success) {
           throw new HttpError("The specified HTTP method is not allowed for the requested resource", 400);
@@ -202,6 +220,8 @@ async function handleCompletions (req, apiKey) {
     let id = "chatcmpl-" + generateId(); //"chatcmpl-8pMMaqXMK68B3nyDBrapTDrhkHBQK";
     const shared = {};
     if (req.stream) {
+      console.log('completion stream');
+
       body = response.body
         .pipeThrough(new TextDecoderStream())
         .pipeThrough(new TransformStream({
@@ -218,7 +238,11 @@ async function handleCompletions (req, apiKey) {
           shared,
         }))
         .pipeThrough(new TextEncoderStream());
+      const finalBuffer = Buffer.concat(await Array.fromAsync(body));
+      const gzip = promisify(zlib.gzip);
+      body = Readable.from(await gzip(finalBuffer));
     } else {
+      console.log('completion string');
       body = await response.text();
       try {
         body = JSON.parse(body);
@@ -229,7 +253,7 @@ async function handleCompletions (req, apiKey) {
         console.error("Error parsing response:", err);
         return new Response(body, fixCors(response)); // output as is
       }
-      body = processCompletionsResponse(body, model, id);
+      body = await processCompletionsResponse(body, model, id);
     }
   }
   return new Response(body, fixCors(response));
@@ -602,7 +626,7 @@ const checkPromptBlock = (choices, promptFeedback, key) => {
   return true;
 };
 
-const processCompletionsResponse = (data, model, id) => {
+const processCompletionsResponse = async (data, model, id) => {
   const obj = {
     id,
     choices: data.candidates.map(transformCandidatesMessage),
@@ -615,7 +639,10 @@ const processCompletionsResponse = (data, model, id) => {
   if (obj.choices.length === 0 ) {
     checkPromptBlock(obj.choices, data.promptFeedback, "message");
   }
-  return JSON.stringify(obj);
+  const body = JSON.stringify(obj);
+  const gzip = promisify(zlib.gzip);
+  body = await gzip(body);
+  return body;
 };
 
 const responseLineRE = /^data: (.*)(?:\n\n|\r\r|\r\n\r\n)/;

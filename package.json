@@ -3,6 +3,7 @@
     "@whatwg-node/server": "0.9",
     "compression": "^1.8.1",
     "express": "^5.1.0",
+    "stream": "^0.0.3",
     "zlib-node": "^1.0.10"
   },
   "devDependencies": {
