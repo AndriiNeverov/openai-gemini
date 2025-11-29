@@ -255,6 +255,11 @@ async function handleCompletions (req, apiKey) {
       }
       body = await processCompletionsResponse(body, model, id);
     }
+  } else {
+    body = await response.text();
+    console.error("Error response:", response.statusCode, body);
+    const gzip = promisify(zlib.gzip);
+    body = await gzip(body);
   }
   return new Response(body, fixCors(response));
 }
